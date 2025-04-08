@@ -168,8 +168,8 @@ const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
     {
-      $set: {
-        refreshToken: undefined,
+      $unset: {
+        refreshToken: 1, // this removes the field from document
       },
     },
     {
@@ -398,10 +398,10 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     throw new ApiError(404, "channel does not exist ");
   }
 
-  console.log("Channel", channel);
+  // console.log("Channel", channel);
 
   return res
-    .ststus(200)
+    .status(200)
     .json(
       new ApiResponse(200, channel[0], "User channel fetched successfully")
     );
@@ -450,7 +450,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
     },
   ]);
 
-  console.log("Watch history: ", user[0].watchHistory);
+  // console.log("Watch history: ", user[0].watchHistory);
 
   return res
     .status(200)
