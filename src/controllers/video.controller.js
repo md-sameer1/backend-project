@@ -93,8 +93,11 @@ const getAllVideos = asyncHandler(async (req, res) => {
 });
 
 const publishAVideo = asyncHandler(async (req, res) => {
-  const { title, description } = req.body;
-  // TODO: get video, upload to cloudinary, create video
+  const { title, description } = req.body;       
+  // TODO: get video,
+  // TODO: upload to cloudinary,
+  // TODO: create video
+
 });
 
 const getVideoById = asyncHandler(async (req, res) => {
