@@ -1,7 +1,10 @@
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  deleteFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -91,8 +94,14 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const user = await User.create({
     fullName,
-    avatar: avatar.url,
-    coverImage: coverImage?.url || "",
+    avatar: {
+      public_id: avatar.public_id,
+      url: avatar.url,
+    },
+    coverImage: {
+      public_id: coverImage.public_id || "",
+      url: coverImage.url || "",
+    },
     email,
     password,
     username: username.toLowerCase(),
@@ -278,30 +287,45 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
-  const avatarLocalPath = req.file?.path;
-  if (!avatarLocalPath) {
+  const newAvatarLocalPath = req.file?.path;
+  if (!newAvatarLocalPath) {
     throw new ApiError(400, "Avatart file is missing");
   }
-  // Todo : delete old image
-  const avatar = await uploadOnCloudinary(avatarLocalPath);
+  const newAvatar = await uploadOnCloudinary(newAvatarLocalPath);
 
-  if (!avatar?.url) {
+  if (!newAvatar?.url) {
     throw new ApiError(400, "Error while uploading avatar on cloudinary");
   }
+  // Todo : delete old image
 
-  const user = await User.findByIdAndUpdate(
+  const user = User?.findById(req?.user?._id).select("avatar");
+
+  const oldAvatarPublicId = user?.avatar?.public_id;
+
+  const updatedUserAvatar = await User.findByIdAndUpdate(
     req?.user?._id,
     {
       $set: {
-        avatar: avatar?.url,
+        avatar: {
+          public_id: newAvatar?.public_id,
+          url: newAvatar?.url,
+        },
       },
     },
     { new: true }
   ).select("-password");
 
+  if (!updateUserAvatar) {
+    throw new ApiError(500, "Something went wrong while updating user avatar");
+  }
+
+  await deleteFromCloudinary(oldAvatarPublicId);
+
   return res
     .status(200)
-    .json(new ApiResponse(200, user, "Avatar updated successfully"));
+    .json(
+      new ApiResponse(200, updatedUserAvatar, "Avatar updated successfully")
+    );
 });
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
