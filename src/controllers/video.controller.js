@@ -11,15 +11,8 @@ import {
 
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
-  //TODO: get all videos based on query, sort, pagination
 
   const pipeline = [];
-
-  //for using text based search you need to create a search index in mongoDB atlas
-  // you can include field mapppings in search index eg.title, description, as well
-  // Field mappings specify which fields within your documents should be indexed for text search.
-  // this helps in seraching only in title, desc providing faster search results
-  // here the name of search index is 'search-videos'
 
   if (query) {
     pipeline.push({
@@ -97,14 +90,6 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
 const publishAVideo = asyncHandler(async (req, res) => {
   const { title, description, isPublished } = req.body;
-  // TODO: title, description
-  // validate it
-  // TODO: get video and thumbnail
-  // validate it
-  // TODO: upload them to cloudinary,
-  // TODO: create video
-  // upload to db
-  // send res
 
   if ([title, description].some((field) => field?.trim() === "")) {
     throw new ApiError(400, "Title and description is required");
@@ -314,17 +299,25 @@ const getVideoById = asyncHandler(async (req, res) => {
 
   console.log("Video by id", video);
 
-  await Video.findByIdAndUpdate(videoId, {
-    $in: {
-      views: 1,
+  await Video.findByIdAndUpdate(
+    videoId,
+    {
+      $in: {
+        views: 1,
+      },
     },
-  });
+    { new: true }
+  );
 
-  await User.findByIdAndUpdate(req.user?._id, {
-    $addToSet: {
-      watchHistory: videoId,
+  await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $addToSet: {
+        watchHistory: videoId,
+      },
     },
-  });
+    { new: true }
+  );
 
   if (!video?.length > 0) {
     throw new ApiError(404, "Video not found");
@@ -336,7 +329,6 @@ const getVideoById = asyncHandler(async (req, res) => {
 });
 
 const updateVideo = asyncHandler(async (req, res) => {
-  //TODO: update video details like title, description, thumbnail
   const { videoId } = req.params;
   const { title, description } = req.body;
 
@@ -400,16 +392,85 @@ const updateVideo = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, updateVideo, "Video updated successfully"));
+    .json(new ApiResponse(200, updatedVideo, "Video updated successfully"));
 });
 
 const deleteVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  //TODO: delete video
+
+  if (!videoId) {
+    throw new ApiError(400, "Video id is required");
+  }
+
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid Video id");
+  }
+
+  const video = Video.findById(videoId);
+
+  if (!video) {
+    throw new ApiError(404, "video not found");
+  }
+
+  if (video?.owner?.toString() !== req?.user?._id.toString()) {
+    throw new ApiError(403, "You are not authorized to delete this video");
+  }
+
+  const thumbnailPublicId = video?.thumbnail?.public_id;
+  const videoPublicId = video?.videoFile?.public_id;
+
+  const deleteVideo = await Video.findByIdAndDelete(videoId);
+
+  if (!deleteVideo) {
+    throw new ApiError(500, "Something went wrong while deleting video");
+  }
+
+  await deleteFromCloudinary(thumbnailPublicId, "image");
+  await deleteFromCloudinary(videoPublicId, "video");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Video deleted successfully"));
 });
 
 const togglePublishStatus = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
+
+  if (!videoId) {
+    throw new ApiError(400, "Video id is required");
+  }
+
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid Video id");
+  }
+
+  const video = Video.findById(videoId);
+
+  if (!video) {
+    throw new ApiError(404, "video not found");
+  }
+
+  if (video?.owner?.toString() !== req?.user?._id.toString()) {
+    throw new ApiError(403, "You are not authorized to delete this video");
+  }
+
+  const updatedVideo = await Video.findByIdAndUpdate(
+    videoId,
+    {
+      $set: {
+        isPublished: !video?.isPublished,
+      },
+    },
+    { new: true }
+  );
+
+  if (!published) {
+    throw new ApiError(500, "Something went wron while publishing");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updateVideo, "Video published successfully"));
 });
 
 export {
